@@ -1,38 +1,31 @@
+import fitz  # PyMuPDF
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
 import google.generativeai as genai
-import os
-from dotenv import load_dotenv
-
-# Load API key
-load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
-
-# [Previous imports and configuration remain the same until RAGEngine class]
+import streamlit as st
 
 class RAGEngine:
     def __init__(self, pdf_path):
-        from sentence_transformers import SentenceTransformer
-        import fitz
-        import numpy as np
-        import faiss
-        
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        # Load PDF and split text
         doc = fitz.open(pdf_path)
         self.text_chunks = [page.get_text() for page in doc]
+
+        # Embedding model
+        self.model = SentenceTransformer("all-MiniLM-L6-v2")
         self.embeddings = self.model.encode(self.text_chunks, show_progress_bar=True)
+
+        # FAISS index
         self.index = faiss.IndexFlatL2(self.embeddings.shape[1])
         self.index.add(np.array(self.embeddings))
-        
-        # Initialize API client
-        load_dotenv()
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if self.api_key:
-            try:
-                genai.configure(api_key=self.api_key)
-                self.gemini = genai.GenerativeModel("models/gemini-1.0-pro")
-            except:
-                self.gemini = None
-        else:
+
+        # Gemini configuration using Streamlit secrets
+        self.api_key = st.secrets["GEMINI_API_KEY"]
+        try:
+            genai.configure(api_key=self.api_key)
+            self.gemini = genai.GenerativeModel("gemini-pro")
+        except Exception as e:
+            print(f"Gemini setup failed: {e}")
             self.gemini = None
 
     def retrieve(self, query, top_k=3):
@@ -42,20 +35,21 @@ class RAGEngine:
 
     def ask(self, question):
         context = "\n\n".join(self.retrieve(question))
-        
+
         if self.gemini:
             try:
-                prompt = f"""Use this insurance policy context to answer the question:
-                
-                Context:
-                {context[:3000]}
-                
-                Question: {question}
-                """
+                prompt = f"""Use the context from the insurance policy to answer the user's question.
+
+Context:
+{context[:3000]}
+
+Question:
+{question}
+
+Answer:"""
                 response = self.gemini.generate_content(prompt)
                 return response.text
-            except:
-                # Fallback to simple response if API fails
-                return f"Here's relevant policy information:\n\n{context[:2000]}..."
+            except Exception as e:
+                return f"(Fallback) Relevant content:\n\n{context[:2000]}"
         else:
-            return f"Based on the policy document:\n\n{context[:2000]}..."
+            return f"(API not loaded) Relevant content:\n\n{context[:2000]}"
