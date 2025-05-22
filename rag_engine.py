@@ -1,3 +1,12 @@
+# monkey patch to avoid torch.classes bug on Streamlit
+import types
+import sys
+
+import torch
+torch.classes = types.SimpleNamespace()
+sys.modules["torch.classes"] = torch.classes
+
+
 import fitz  # PyMuPDF
 import faiss
 import numpy as np
