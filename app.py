@@ -55,17 +55,13 @@ if "messages" not in st.session_state:
 if "rag" not in st.session_state:
     with st.spinner("Loading policy documents..."):
         try:
-            load_dotenv()
-            GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-            if not GEMINI_API_KEY:
-                st.error("API key not found. Please check your .env file")
-                st.stop()
-                
+            GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
             genai.configure(api_key=GEMINI_API_KEY)
             st.session_state.rag = RAGEngine("data/Home_insurance_sample.pdf")
         except Exception as e:
             st.error(f"Initialization failed: {str(e)}")
             st.stop()
+
 
 # Sidebar
 with st.sidebar:
